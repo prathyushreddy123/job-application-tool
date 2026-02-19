@@ -20,3 +20,25 @@ Running log of all completed development tasks.
 - `CLAUDE.md` — Full rewrite with architecture, structure, commands, behavior docs
 - `docs/completed-tasks.md` — Created
 - `docs/troubleshooting.md` — Created
+
+---
+
+## 2026-02-19: Phase 1 — Project Scaffolding & Configuration
+
+**What was done:** Created the full project skeleton — backend (FastAPI + config + CLI), frontend (Vite + React + TypeScript + Tailwind), data files, and gitignore.
+
+**Verified:**
+- Backend `/health` endpoint returns 200
+- Frontend builds and serves at :5173
+- Config loads from env vars correctly
+
+**Files created:**
+- `.gitignore`, `.env.example`
+- `backend/config.py` — Pydantic BaseSettings with all env vars
+- `backend/main.py` — FastAPI app with /health, CLI entrypoint (serve/apply/--demo/--dry-run)
+- `backend/requirements.txt` — All Python dependencies
+- `backend/__init__.py`, `models/__init__.py`, `automation/__init__.py`, `adapters/__init__.py`, `routes/__init__.py`, `tests/__init__.py`
+- `frontend/` — Full Vite + React + TS + Tailwind scaffold with API proxy config
+- `data/answers.json` — Profile template with custom_answers section
+- `data/mock-jobs.json` — 5 mock Greenhouse jobs for demo mode
+- `data/audit/.gitkeep`, `credentials/.gitkeep`
