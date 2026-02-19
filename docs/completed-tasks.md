@@ -70,3 +70,18 @@ Running log of all completed development tasks.
 - `backend/automation/ats_detect.py` — detect_ats_type (URL patterns for 4 ATS), get_adapter factory
 - `backend/tests/test_ats_detect.py` — 13 tests (URL detection, adapter factory)
 - `backend/tests/test_greenhouse.py` — 17 tests (field map completeness, dotpath resolution, label matching)
+
+---
+
+## 2026-02-19: Phase 4 — Playwright Browser Manager & Form Pipeline
+
+**What was done:** Built browser lifecycle management with persistent sessions, the fill-ahead pipeline with asyncio.Queue-based buffer, re-fill-on-approve with retry logic, and per-domain rate limiting. 13 new tests (59 total), all passing.
+
+**Troubleshooting:** RateLimiter._get_domain returned empty string for malformed URLs instead of "unknown" — fixed by adding empty hostname check.
+
+**Files created:**
+- `backend/automation/browser.py` — BrowserManager (persistent user_data_dir, screenshot, bring_to_front, random_delay)
+- `backend/automation/form_filler.py` — FormFillingPipeline (fill-ahead buffer, refill_and_submit with retry-once, auto-stop on 3 failures)
+- `backend/automation/rate_limiter.py` — RateLimiter (per-domain, 1-hour sliding window, async wait)
+- `backend/tests/test_rate_limiter.py` — 11 tests
+- `backend/tests/test_form_filler.py` — 2 tests (status, queue empty)
