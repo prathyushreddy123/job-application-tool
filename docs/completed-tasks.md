@@ -85,3 +85,15 @@ Running log of all completed development tasks.
 - `backend/automation/rate_limiter.py` — RateLimiter (per-domain, 1-hour sliding window, async wait)
 - `backend/tests/test_rate_limiter.py` — 11 tests
 - `backend/tests/test_form_filler.py` — 2 tests (status, queue empty)
+
+---
+
+## 2026-02-19: Phase 5 — Gemini Client & n8n Client
+
+**What was done:** Built external service clients — Gemini AI for custom question fallback and n8n webhook client with offline resilience. n8n verified running live on localhost:5678. 7 new tests (66 total), all passing.
+
+**Files created:**
+- `backend/gemini_client.py` — GeminiClient (Gemini 2.0 Flash, 10s timeout, prompt with profile+job context)
+- `backend/n8n_client.py` — N8nClient (webhook POST, queue + exponential backoff retry, health check loop)
+- `backend/tests/test_gemini_client.py` — 3 tests (no key, generate without key, prompt building)
+- `backend/tests/test_n8n_client.py` — 4 tests (init, queue on failure, offline/online health check)
