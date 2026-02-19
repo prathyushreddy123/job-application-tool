@@ -1,0 +1,57 @@
+[
+  {
+    "id": "a1b2c3d4-1111-4000-8000-000000000001",
+    "job_url": "https://boards.greenhouse.io/techcorp/jobs/10001",
+    "company": "TechCorp",
+    "job_title": "Senior Software Engineer",
+    "location": "Remote",
+    "portal_type": "greenhouse",
+    "priority": "high",
+    "status": "new",
+    "date_added": "2026-02-19"
+  },
+  {
+    "id": "a1b2c3d4-2222-4000-8000-000000000002",
+    "job_url": "https://boards.greenhouse.io/dataflows/jobs/10002",
+    "company": "DataFlows Inc",
+    "job_title": "Full Stack Developer",
+    "location": "San Francisco, CA",
+    "portal_type": "greenhouse",
+    "priority": "medium",
+    "status": "new",
+    "date_added": "2026-02-19"
+  },
+  {
+    "id": "a1b2c3d4-3333-4000-8000-000000000003",
+    "job_url": "https://boards.greenhouse.io/cloudnative/jobs/10003",
+    "company": "CloudNative",
+    "job_title": "Backend Engineer",
+    "location": "New York, NY",
+    "portal_type": "greenhouse",
+    "priority": "medium",
+    "status": "new",
+    "date_added": "2026-02-18"
+  },
+  {
+    "id": "a1b2c3d4-4444-4000-8000-000000000004",
+    "job_url": "https://boards.greenhouse.io/aistart/jobs/10004",
+    "company": "AI Startup",
+    "job_title": "ML Platform Engineer",
+    "location": "Remote",
+    "portal_type": "greenhouse",
+    "priority": "high",
+    "status": "new",
+    "date_added": "2026-02-18"
+  },
+  {
+    "id": "a1b2c3d4-5555-4000-8000-000000000005",
+    "job_url": "https://boards.greenhouse.io/fintech/jobs/10005",
+    "company": "FinTech Solutions",
+    "job_title": "Software Engineer II",
+    "location": "Austin, TX (Hybrid)",
+    "portal_type": "greenhouse",
+    "priority": "low",
+    "status": "new",
+    "date_added": "2026-02-17"
+  }
+]

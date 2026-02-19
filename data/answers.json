@@ -1,0 +1,73 @@
+{
+  "personal": {
+    "first_name": "Alex",
+    "last_name": "Johnson",
+    "full_name": "Alex Johnson",
+    "email": "alex.johnson@email.com",
+    "phone": "+1-555-123-4567",
+    "address": {
+      "street": "123 Main St",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94102",
+      "country": "United States"
+    }
+  },
+  "professional": {
+    "linkedin_url": "https://linkedin.com/in/alexjohnson",
+    "portfolio_url": "https://alexjohnson.dev",
+    "github_url": "https://github.com/alexjohnson",
+    "years_experience": "5",
+    "current_title": "Senior Software Engineer",
+    "current_company": "Previous Corp"
+  },
+  "work_authorization": {
+    "authorized_us": "Yes",
+    "sponsorship_required": "No",
+    "visa_status": "US Citizen"
+  },
+  "preferences": {
+    "salary_expectation": "Open to discuss based on total compensation",
+    "available_start": "2 weeks notice",
+    "willing_to_relocate": "Yes",
+    "work_preference": "Remote or Hybrid"
+  },
+  "education": [
+    {
+      "degree": "Bachelor of Science",
+      "major": "Computer Science",
+      "university": "University of California, Berkeley",
+      "graduation_year": "2019",
+      "gpa": "3.7"
+    }
+  ],
+  "work_history": [
+    {
+      "company": "Previous Corp",
+      "title": "Senior Software Engineer",
+      "start_date": "2021-06",
+      "end_date": "present",
+      "description": "Led development of microservices architecture serving 1M+ users"
+    },
+    {
+      "company": "Startup Inc",
+      "title": "Software Engineer",
+      "start_date": "2019-07",
+      "end_date": "2021-05",
+      "description": "Full-stack development with React and Python"
+    }
+  ],
+  "demographics": {
+    "gender": "Prefer not to say",
+    "ethnicity": "Prefer not to say",
+    "veteran_status": "No",
+    "disability_status": "Prefer not to say"
+  },
+  "custom_answers": {
+    "willing_to_relocate": "Yes, I am open to relocation for the right opportunity.",
+    "why_interested": "I am passionate about building impactful products and believe my skills in software engineering align well with this role.",
+    "work_authorization": "Yes, I am authorized to work in the United States without sponsorship.",
+    "biggest_strength": "My ability to break down complex problems into manageable components and deliver iterative solutions.",
+    "remote_work": "I thrive in both remote and hybrid environments and have 3+ years of remote work experience."
+  }
+}
