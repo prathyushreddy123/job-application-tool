@@ -57,3 +57,16 @@ Running log of all completed development tasks.
 - `backend/tests/test_profile.py` — 10 tests
 - `backend/tests/test_audit.py` — 4 tests
 - `backend/tests/test_stats.py` — 2 tests
+
+---
+
+## 2026-02-19: Phase 3 — ATS Detection & Greenhouse Adapter
+
+**What was done:** Built the adapter abstraction layer, Greenhouse-specific form filling adapter with comprehensive field/label maps, ATS auto-detection from URL patterns, and factory function. 30 new tests (46 total), all passing.
+
+**Files created:**
+- `backend/automation/adapters/base.py` — BaseAdapter ABC (detect, fill_form, submit, navigate_pages, detect_custom_questions)
+- `backend/automation/adapters/greenhouse.py` — GreenhouseAdapter with FIELD_MAP (14 entries), LABEL_MAP (40+ entries), match_label_to_dotpath, fill_form, multi-page navigation, custom question detection
+- `backend/automation/ats_detect.py` — detect_ats_type (URL patterns for 4 ATS), get_adapter factory
+- `backend/tests/test_ats_detect.py` — 13 tests (URL detection, adapter factory)
+- `backend/tests/test_greenhouse.py` — 17 tests (field map completeness, dotpath resolution, label matching)
