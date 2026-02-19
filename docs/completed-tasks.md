@@ -42,3 +42,18 @@ Running log of all completed development tasks.
 - `data/answers.json` — Profile template with custom_answers section
 - `data/mock-jobs.json` — 5 mock Greenhouse jobs for demo mode
 - `data/audit/.gitkeep`, `credentials/.gitkeep`
+
+---
+
+## 2026-02-19: Phase 2 — Data Models, Profile, Audit, Stats + Tests
+
+**What was done:** Built the core data layer — Pydantic models, profile loading with dot-path traversal and answer bank search, audit logging with timing data, and stats aggregation. All 16 unit tests passing.
+
+**Files created:**
+- `backend/models/job.py` — Job, FilledField, JobTiming, JobStatus models
+- `backend/profile.py` — load_profile, get_answer, search_answer_bank
+- `backend/audit.py` — write_audit_log, list_audit_logs
+- `backend/stats.py` — get_stats (aggregates from audit logs)
+- `backend/tests/test_profile.py` — 10 tests
+- `backend/tests/test_audit.py` — 4 tests
+- `backend/tests/test_stats.py` — 2 tests
