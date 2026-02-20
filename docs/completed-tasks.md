@@ -97,3 +97,27 @@ Running log of all completed development tasks.
 - `backend/n8n_client.py` — N8nClient (webhook POST, queue + exponential backoff retry, health check loop)
 - `backend/tests/test_gemini_client.py` — 3 tests (no key, generate without key, prompt building)
 - `backend/tests/test_n8n_client.py` — 4 tests (init, queue on failure, offline/online health check)
+
+---
+
+## 2026-02-19: Phase 6 — FastAPI Routes, WebSocket & Auth
+
+**What was done:** Wired all backend pieces into a running API server. All endpoints verified working in demo mode with curl. API key auth rejects invalid keys. WebSocket endpoint ready. 9 new tests (75 total), all passing.
+
+**Endpoints verified:**
+- `GET /health` — 200
+- `POST /api/automation/start?demo=true` — loads 5 mock jobs
+- `GET /api/jobs` — returns jobs with filled fields
+- `POST /api/jobs/{id}/approve` — marks submitted (demo), triggers re-fill+submit (real)
+- `POST /api/jobs/{id}/skip` — marks skipped
+- `GET /api/automation/status` — pipeline status, n8n online, job counts
+- `GET /api/stats` — aggregated audit stats
+- `POST /api/webhooks/jobs-sync` — n8n job sync receiver
+- `WS /ws/updates` — real-time broadcast
+- Auth: 401 on wrong X-API-Key
+
+**Files created/modified:**
+- `backend/auth.py`, `backend/job_store.py`, `backend/websocket_manager.py`, `backend/demo.py`
+- `backend/routes/jobs.py`, `automation.py`, `webhooks.py`, `stats.py`
+- `backend/main.py` — rewritten with AppState, startup/shutdown, all routers
+- `backend/tests/test_job_store.py` — 9 tests
