@@ -67,6 +67,9 @@ async def stop_automation():
     if not app_state.settings.demo:
         await app_state.pipeline.stop()
 
+    app_state.settings.demo = False
+    app_state.settings.dry_run = False
+
     await app_state.ws_manager.broadcast({"type": "automation_stopped"})
     logger.info("Automation stopped by user")
 
