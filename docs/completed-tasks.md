@@ -121,3 +121,27 @@ Running log of all completed development tasks.
 - `backend/routes/jobs.py`, `automation.py`, `webhooks.py`, `stats.py`
 - `backend/main.py` — rewritten with AppState, startup/shutdown, all routers
 - `backend/tests/test_job_store.py` — 9 tests
+
+---
+
+## 2026-02-19: Phase 7 — Frontend Card Stack, Sidebar, Keyboard
+
+**What was done:** Built the full React frontend with Tinder-style card review interface. All components wired together with keyboard shortcuts, WebSocket real-time updates, toasts, and progress sidebar. Frontend builds cleanly. 75 backend tests still passing.
+
+**Components created:**
+- `CardStack.tsx` — Main view with stacked card visual, empty/ready states
+- `ApplicationCard.tsx` — Header (company, title, ATS badge), FormPreview, action buttons with keyboard hints
+- `FormPreview.tsx` — Field list with status icons (Check/AlertTriangle/Bot/X), inline-editable AI fields
+- `ProgressSidebar.tsx` — Counts, n8n status indicator, recent activity feed, keyboard shortcuts legend
+- `PanicButton.tsx` — Fixed-position red stop button (visible when running)
+- `ScreenshotModal.tsx` — Overlay for Space-key screenshot view
+- `TopBar.tsx` — Start button, Demo/Dry Run toggles
+
+**Hooks & Libraries:**
+- `useKeyboard.ts` — Global keyboard shortcuts (Enter/ArrowRight=approve, ArrowLeft/S=skip, Esc=panic, Space=screenshot, E=edit)
+- `useJobs.ts` — Job state management, WebSocket subscription, fallback polling every 5s
+- `lib/api.ts` — API client with X-API-Key header
+- `lib/websocket.ts` — WebSocket client with auto-reconnect every 3s
+- `lib/types.ts` — TypeScript interfaces matching backend models
+
+**Troubleshooting:** `useRef()` without initial argument fails in strict TypeScript mode — fixed by passing `undefined` explicitly.
