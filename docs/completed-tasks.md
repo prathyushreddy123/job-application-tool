@@ -145,3 +145,23 @@ Running log of all completed development tasks.
 - `lib/types.ts` — TypeScript interfaces matching backend models
 
 **Troubleshooting:** `useRef()` without initial argument fails in strict TypeScript mode — fixed by passing `undefined` explicitly.
+
+---
+
+## 2026-02-19: Phase 8 — End-to-End Integration & Demo Polish
+
+**What was done:** Wired WebSocket events to toast notifications, added auto-stop on empty queue, fixed WebSocket URL for WSL2 compatibility, added error handling to TopBar start flow. Full E2E test suite (19 tests) all passing.
+
+**Changes:**
+- `App.tsx` — WebSocket connect on mount, toast notifications for all WS events (automation_started/stopped, job_submitted/failed, jobs_synced), auto-stop when queue empty
+- `TopBar.tsx` — Error/warning toasts on start failure or no jobs available
+- `lib/websocket.ts` — WebSocket URL uses `location.host` instead of hardcoded port (WSL2/proxy compatible)
+- `vite.config.ts` — Added `host: '0.0.0.0'` for WSL2 access from Windows browser
+- `backend/routes/automation.py` — Stop resets `settings.demo` and `settings.dry_run` (fixed in E2E testing)
+
+**E2E tests verified (19/19 pass):**
+- Health, auth (reject no key, reject bad key), jobs CRUD
+- Demo start (5 jobs), approve, skip, status, stats
+- Stop and status-after-stop, webhook sync, 404 handling
+- WebSocket connectivity and message reception
+- Frontend HTML, proxy to /api/jobs, proxy to /api/automation/status
