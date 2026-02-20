@@ -1,7 +1,9 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Toaster, toast } from "sonner";
 import { useJobs } from "./hooks/useJobs";
 import { stopAutomation } from "./lib/api";
+import { wsClient } from "./lib/websocket";
+import type { WsMessage } from "./lib/types";
 import { TopBar } from "./components/TopBar";
 import { CardStack } from "./components/CardStack";
 import { ProgressSidebar } from "./components/ProgressSidebar";
@@ -23,11 +25,53 @@ function App() {
     skip,
   } = useJobs();
 
+  // Connect WebSocket on mount
+  useEffect(() => {
+    wsClient.connect();
+    return () => wsClient.disconnect();
+  }, []);
+
+  // Wire WebSocket events to toasts
+  useEffect(() => {
+    const unsubscribe = wsClient.onMessage((msg: WsMessage) => {
+      switch (msg.type) {
+        case "automation_started":
+          toast.success(
+            `Automation started (${msg.mode}, ${msg.job_count} jobs)`
+          );
+          break;
+        case "automation_stopped":
+          setRunning(false);
+          toast("Automation stopped", { icon: "🛑" });
+          break;
+        case "job_submitted":
+          if (msg.company) toast.success(`Submitted: ${msg.company}`);
+          break;
+        case "job_failed":
+          if (msg.company)
+            toast.error(`Failed: ${msg.company}${msg.error ? ` — ${msg.error}` : ""}`);
+          break;
+        case "jobs_synced":
+          toast.info(`${msg.count ?? 0} new jobs synced`);
+          break;
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  // Auto-stop when queue is empty (all cards processed)
+  useEffect(() => {
+    if (started && running && totalActionable === 0 && counts.approved + counts.skipped + counts.failed > 0) {
+      toast.success("All applications reviewed!");
+      stopAutomation().catch(() => {});
+      setRunning(false);
+    }
+  }, [started, running, totalActionable, counts]);
+
   const handleStarted = useCallback(() => {
     setStarted(true);
     setRunning(true);
     loadJobs();
-    toast.success("Automation started");
   }, [loadJobs]);
 
   const handleApprove = useCallback(async () => {

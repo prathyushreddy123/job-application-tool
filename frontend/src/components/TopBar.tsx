@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Play, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { startAutomation } from "../lib/api";
 
 interface TopBarProps {
@@ -15,10 +16,15 @@ export function TopBar({ running, onStarted }: TopBarProps) {
   const handleStart = async () => {
     setStarting(true);
     try {
-      await startAutomation(demo, dryRun);
-      onStarted();
+      const result = await startAutomation(demo, dryRun);
+      if (result.status === "no_jobs") {
+        toast.warning("No jobs to process");
+      } else {
+        onStarted();
+      }
     } catch (err) {
       console.error("Failed to start:", err);
+      toast.error("Failed to start automation");
     } finally {
       setStarting(false);
     }

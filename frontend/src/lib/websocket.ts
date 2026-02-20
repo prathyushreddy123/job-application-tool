@@ -68,6 +68,8 @@ export class WebSocketClient {
   }
 }
 
-// Singleton instance
-const wsUrl = `ws://${window.location.hostname}:8000/ws/updates`;
+// Singleton instance — use relative path so Vite proxy handles it,
+// and in production it connects to the same host
+const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+const wsUrl = `${wsProtocol}//${window.location.host}/ws/updates`;
 export const wsClient = new WebSocketClient(wsUrl);
