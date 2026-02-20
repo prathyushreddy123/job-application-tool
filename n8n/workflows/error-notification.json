@@ -1,0 +1,110 @@
+{
+  "name": "Error Notification",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "job-failed",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "job-failed"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.failure_count }}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check-threshold",
+      "name": "3+ Failures?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $env.NOTIFICATION_EMAIL }}",
+        "subject": "Job Auto-Apply: Automation Paused — {{ $json.body.failure_count }} consecutive failures",
+        "message": "<h2>Automation Paused</h2>\n<p><strong>{{ $json.body.failure_count }}</strong> consecutive failures detected. Automation has been paused.</p>\n<h3>Last Failure</h3>\n<ul>\n<li><strong>Company:</strong> {{ $json.body.company }}</li>\n<li><strong>Job URL:</strong> <a href=\"{{ $json.body.job_url }}\">{{ $json.body.job_url }}</a></li>\n<li><strong>Error:</strong> {{ $json.body.error }}</li>\n</ul>\n<p>Please check the application and restart automation when ready.</p>",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Alert Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [440, -100],
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CREDENTIAL_ID",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'alert_sent', failure_count: $json.body.failure_count }) }}"
+      },
+      "id": "respond-alerted",
+      "name": "Respond Alerted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [660, -100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'logged', failure_count: $json.body.failure_count }) }}"
+      },
+      "id": "respond-logged",
+      "name": "Respond Logged",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [440, 100]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [{ "node": "3+ Failures?", "type": "main", "index": 0 }]
+      ]
+    },
+    "3+ Failures?": {
+      "main": [
+        [{ "node": "Send Alert Email", "type": "main", "index": 0 }],
+        [{ "node": "Respond Logged", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Alert Email": {
+      "main": [
+        [{ "node": "Respond Alerted", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    { "name": "job-auto-apply" }
+  ]
+}

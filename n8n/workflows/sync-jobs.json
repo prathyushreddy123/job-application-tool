@@ -1,0 +1,203 @@
+{
+  "name": "Sync Jobs from Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Jobs"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "status",
+              "lookupValue": "new"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "read-sheets",
+      "name": "Get New Jobs",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [220, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Deduplicate by job_url — skip rows with URLs we've already seen\nconst seen = new Set();\nconst unique = [];\n\nfor (const item of $input.all()) {\n  const url = item.json.job_url;\n  if (url && !seen.has(url)) {\n    seen.add(url);\n    unique.push(item);\n  }\n}\n\nreturn unique;"
+      },
+      "id": "dedup",
+      "name": "Deduplicate by URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate UUID for rows missing an id, auto-detect portal_type\nconst { randomUUID } = require('crypto');\n\nconst atsPatterns = [\n  { pattern: /greenhouse\\.io|boards\\.greenhouse/, type: 'greenhouse' },\n  { pattern: /myworkdayjobs\\.com|workday\\.com/, type: 'workday' },\n  { pattern: /lever\\.co|jobs\\.lever/, type: 'lever' },\n  { pattern: /linkedin\\.com\\/jobs/, type: 'linkedin' }\n];\n\nfunction detectAts(url) {\n  if (!url) return '';\n  for (const { pattern, type } of atsPatterns) {\n    if (pattern.test(url)) return type;\n  }\n  return '';\n}\n\nconst results = [];\nfor (const item of $input.all()) {\n  const data = { ...item.json };\n  \n  // Generate UUID if missing\n  if (!data.id) {\n    data.id = randomUUID();\n    data._needs_id_writeback = true;\n  }\n  \n  // Auto-detect portal_type if blank\n  if (!data.portal_type) {\n    data.portal_type = detectAts(data.job_url);\n  }\n  \n  // Set defaults\n  if (!data.priority) data.priority = 'medium';\n  if (!data.date_added) data.date_added = new Date().toISOString().split('T')[0];\n  \n  results.push({ json: data });\n}\n\nreturn results;"
+      },
+      "id": "enrich",
+      "name": "Generate IDs & Detect ATS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json._needs_id_writeback }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "if-needs-writeback",
+      "name": "Needs ID Writeback?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Jobs"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.id }}",
+            "portal_type": "={{ $json.portal_type }}"
+          },
+          "matchingColumns": ["job_url"]
+        },
+        "options": {}
+      },
+      "id": "write-ids-back",
+      "name": "Write IDs to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1100, -100],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/webhooks/jobs-sync",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jobs: $input.all().map(item => ({ id: item.json.id, job_url: item.json.job_url, company: item.json.company, job_title: item.json.job_title, location: item.json.location || '', portal_type: item.json.portal_type || '', priority: item.json.priority || 'medium', date_added: item.json.date_added || '' })) }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "post-to-fastapi",
+      "name": "POST to FastAPI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1320, 0]
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [{ "node": "Get New Jobs", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get New Jobs": {
+      "main": [
+        [{ "node": "Deduplicate by URL", "type": "main", "index": 0 }]
+      ]
+    },
+    "Deduplicate by URL": {
+      "main": [
+        [{ "node": "Generate IDs & Detect ATS", "type": "main", "index": 0 }]
+      ]
+    },
+    "Generate IDs & Detect ATS": {
+      "main": [
+        [{ "node": "Needs ID Writeback?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Needs ID Writeback?": {
+      "main": [
+        [{ "node": "Write IDs to Sheet", "type": "main", "index": 0 }],
+        [{ "node": "POST to FastAPI", "type": "main", "index": 0 }]
+      ]
+    },
+    "Write IDs to Sheet": {
+      "main": [
+        [{ "node": "POST to FastAPI", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    { "name": "job-auto-apply" }
+  ]
+}

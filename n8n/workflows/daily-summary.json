@@ -1,0 +1,101 @@
+{
+  "name": "Daily Summary",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "6 PM Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Jobs"
+        },
+        "options": {}
+      },
+      "id": "read-all-jobs",
+      "name": "Get All Jobs",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [220, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Count jobs by status and filter today's activity\nconst today = new Date().toISOString().split('T')[0];\nconst jobs = $input.all().map(i => i.json);\n\nconst counts = {\n  total: jobs.length,\n  applied: 0,\n  failed: 0,\n  skipped: 0,\n  new: 0,\n  today_applied: 0,\n  today_failed: 0,\n  today_skipped: 0\n};\n\nfor (const job of jobs) {\n  const status = (job.status || '').toLowerCase();\n  if (status === 'applied') counts.applied++;\n  else if (status === 'failed') counts.failed++;\n  else if (status === 'skipped') counts.skipped++;\n  else if (status === 'new') counts.new++;\n  \n  // Check if activity happened today\n  if (job.date_applied && job.date_applied.startsWith(today)) {\n    if (status === 'applied') counts.today_applied++;\n    else if (status === 'failed') counts.today_failed++;\n    else if (status === 'skipped') counts.today_skipped++;\n  }\n}\n\ncounts.today_total = counts.today_applied + counts.today_failed + counts.today_skipped;\ncounts.success_rate = counts.applied > 0 \n  ? Math.round((counts.applied / (counts.applied + counts.failed)) * 100) \n  : 0;\n\nreturn [{ json: counts }];"
+      },
+      "id": "count-stats",
+      "name": "Count by Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $env.NOTIFICATION_EMAIL }}",
+        "subject": "Job Auto-Apply Daily Summary — {{ $json.today_total }} processed today",
+        "message": "<h2>Daily Application Summary</h2>\n<p><em>{{ new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</em></p>\n\n<h3>Today's Activity</h3>\n<table style=\"border-collapse: collapse; width: 300px;\">\n<tr><td style=\"padding: 4px 12px;\">Applied</td><td style=\"padding: 4px 12px; font-weight: bold;\">{{ $json.today_applied }}</td></tr>\n<tr><td style=\"padding: 4px 12px;\">Failed</td><td style=\"padding: 4px 12px; font-weight: bold;\">{{ $json.today_failed }}</td></tr>\n<tr><td style=\"padding: 4px 12px;\">Skipped</td><td style=\"padding: 4px 12px; font-weight: bold;\">{{ $json.today_skipped }}</td></tr>\n<tr style=\"border-top: 1px solid #ccc;\"><td style=\"padding: 4px 12px; font-weight: bold;\">Total</td><td style=\"padding: 4px 12px; font-weight: bold;\">{{ $json.today_total }}</td></tr>\n</table>\n\n<h3>All-Time Stats</h3>\n<table style=\"border-collapse: collapse; width: 300px;\">\n<tr><td style=\"padding: 4px 12px;\">Total Jobs</td><td style=\"padding: 4px 12px; font-weight: bold;\">{{ $json.total }}</td></tr>\n<tr><td style=\"padding: 4px 12px;\">Applied</td><td style=\"padding: 4px 12px; font-weight: bold;\">{{ $json.applied }}</td></tr>\n<tr><td style=\"padding: 4px 12px;\">Failed</td><td style=\"padding: 4px 12px; font-weight: bold;\">{{ $json.failed }}</td></tr>\n<tr><td style=\"padding: 4px 12px;\">Skipped</td><td style=\"padding: 4px 12px; font-weight: bold;\">{{ $json.skipped }}</td></tr>\n<tr><td style=\"padding: 4px 12px;\">Pending</td><td style=\"padding: 4px 12px; font-weight: bold;\">{{ $json.new }}</td></tr>\n<tr style=\"border-top: 1px solid #ccc;\"><td style=\"padding: 4px 12px;\">Success Rate</td><td style=\"padding: 4px 12px; font-weight: bold;\">{{ $json.success_rate }}%</td></tr>\n</table>",
+        "options": {}
+      },
+      "id": "send-summary",
+      "name": "Send Summary Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [660, 0],
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CREDENTIAL_ID",
+          "name": "SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "6 PM Daily": {
+      "main": [
+        [{ "node": "Get All Jobs", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get All Jobs": {
+      "main": [
+        [{ "node": "Count by Status", "type": "main", "index": 0 }]
+      ]
+    },
+    "Count by Status": {
+      "main": [
+        [{ "node": "Send Summary Email", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    { "name": "job-auto-apply" }
+  ]
+}
