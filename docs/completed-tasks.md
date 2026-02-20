@@ -165,3 +165,18 @@ Running log of all completed development tasks.
 - Stop and status-after-stop, webhook sync, 404 handling
 - WebSocket connectivity and message reception
 - Frontend HTML, proxy to /api/jobs, proxy to /api/automation/status
+
+---
+
+## 2026-02-19: Phase 9 — n8n Workflows
+
+**What was done:** Created 4 importable n8n workflow JSON files and setup documentation. All workflow JSONs validated. Full E2E suite (13 tests) passing.
+
+**Workflows created:**
+- `n8n/workflows/sync-jobs.json` — Schedule (5min) → Google Sheets (status=new) → Dedup by URL → Generate UUIDs + auto-detect ATS → Write IDs back → POST to FastAPI /api/webhooks/jobs-sync
+- `n8n/workflows/update-status.json` — Webhook /job-status-update → Google Sheets update row by ID (status, date_applied, error_log)
+- `n8n/workflows/error-notification.json` — Webhook /job-failed → IF failure_count >= 3 → Send alert email, ELSE log only
+- `n8n/workflows/daily-summary.json` — Cron 6PM → Google Sheets read all → Code node count by status → Send HTML summary email
+
+**Documentation:**
+- `n8n/README.md` — Prerequisites, Google Sheets setup, import instructions, workflow descriptions, troubleshooting table, testing commands
