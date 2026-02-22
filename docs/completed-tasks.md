@@ -242,3 +242,26 @@ Running log of all completed development tasks.
 - `frontend/src/components/ProgressSidebar.tsx` — Stats section with success rate, AI counts, top skipped
 - `frontend/src/components/CardStack.tsx` — E key calls editJob API with bring_browser_to_front
 - `frontend/src/lib/api.ts` — `editJob()` function
+
+---
+
+## 2026-02-22: Phase 12 — Pipeline Hardening (5 Reliability Features)
+
+**What was done:** Implemented 5 features that make the pipeline work reliably on real job sites. All 138 tests passing, frontend builds clean.
+
+**Features implemented:**
+
+1. **Re-fill retry logic rewrite** — Replaced fragile `finally` block with clean `keep_page_open` flag. On final failure: brings browser to front, broadcasts `manual_intervention` WebSocket event, keeps page open for user. Also checks for CAPTCHA and login walls during re-fill.
+
+2. **Rate limit enforcement in fill_single** — Added `rate_limiter.record()` call after successful form fill in `fill_single()`. Pre-fill buffer now respects per-domain rate limits.
+
+3. **Multi-page custom question detection** — Extracted `_handle_custom_questions()` method from inline code. Now called on both the first page AND after multi-page navigation, so Workday/Greenhouse multi-step forms get custom questions answered on every page.
+
+4. **Login wall detection** — Added `detect_login_wall()` to BrowserManager. Checks URL patterns (`/login`, `/sso`, `accounts.google.com`, etc.) and DOM elements (`input[type="password"]`, `button:has-text("Sign in")`). Smart enough to distinguish login forms from job applications (checks for file upload / resume inputs). Integrated into both `fill_single()` and `refill_and_submit()`.
+
+5. **Form validation error detection** — Added `detect_validation_errors()` to BrowserManager. Scans 10+ CSS selectors (`.error-message`, `.invalid-feedback`, `[role="alert"]`, Workday `[data-automation-id="errorMessage"]`) plus `aria-invalid="true"` inputs. Errors added as failed fields with `source="validation_error"` so they appear on the review card.
+
+**Files modified:**
+- `backend/automation/form_filler.py` — Retry rewrite, rate limit record, `_handle_custom_questions()` extraction, login wall + validation checks
+- `backend/automation/browser.py` — `detect_login_wall()`, `detect_validation_errors()` methods
+- `docs/missing-features.md` — Status updates for all 5 features

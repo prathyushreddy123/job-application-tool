@@ -94,6 +94,61 @@ class FormFillingPipeline:
             return self._ready.pop(0)
         return None
 
+    async def _handle_custom_questions(
+        self, adapter: BaseAdapter, page, job: Job
+    ) -> list[FilledField]:
+        """Detect and fill custom questions on the current page."""
+        fields: list[FilledField] = []
+        custom_questions = await adapter.detect_custom_questions(page)
+
+        for cq in custom_questions:
+            answer = search_answer_bank(self._profile, cq["label"])
+            source = "answer_bank"
+            status = "filled"
+
+            # Gemini fallback if no answer bank match
+            if not answer and self._gemini and self._gemini.is_available:
+                answer = await self._gemini.generate_answer(
+                    cq["label"], self._profile, job
+                )
+                source = "gemini"
+                status = "ai_generated"
+
+            if answer and cq["selector"]:
+                try:
+                    el = await page.query_selector(cq["selector"])
+                    if el:
+                        await el.fill(answer)
+                    fields.append(FilledField(
+                        label=cq["label"],
+                        value=answer,
+                        status=status,
+                        source=source,
+                    ))
+                except Exception:
+                    fields.append(FilledField(
+                        label=cq["label"],
+                        value=answer,
+                        status="failed",
+                        source=source,
+                    ))
+            elif answer:
+                fields.append(FilledField(
+                    label=cq["label"],
+                    value=answer,
+                    status=status,
+                    source=source,
+                ))
+            else:
+                fields.append(FilledField(
+                    label=cq["label"],
+                    value="",
+                    status="skipped",
+                    source="",
+                ))
+
+        return fields
+
     async def fill_single(self, job: Job) -> Job:
         """Fill a single job's application form.
 
@@ -132,6 +187,19 @@ class FormFillingPipeline:
                     })
                 return job
 
+            # Check for login wall — pause and bring browser to front
+            if await self._browser.detect_login_wall(page):
+                await self._browser.bring_to_front(page)
+                job.status = JobStatus.FAILED
+                job.error_log = "Login required — log in manually and retry"
+                if self._ws_manager:
+                    await self._ws_manager.broadcast({
+                        "type": "login_required",
+                        "job_id": job.id,
+                        "company": job.company,
+                    })
+                return job
+
             # Detect ATS type if not already set
             if not job.portal_type:
                 job.portal_type = detect_ats_type(job.job_url)
@@ -161,72 +229,37 @@ class FormFillingPipeline:
             # Fill the form
             fields.extend(await adapter.fill_form(page, self._profile))
 
-            # Handle custom questions (answer bank -> Gemini fallback)
-            custom_questions = await adapter.detect_custom_questions(page)
-            for cq in custom_questions:
-                answer = search_answer_bank(self._profile, cq["label"])
-                source = "answer_bank"
-                status = "filled"
+            # Handle custom questions on first page
+            fields.extend(
+                await self._handle_custom_questions(adapter, page, job)
+            )
 
-                # Gemini fallback if no answer bank match
-                if not answer and self._gemini and self._gemini.is_available:
-                    answer = await self._gemini.generate_answer(
-                        cq["label"], self._profile, job
-                    )
-                    source = "gemini"
-                    status = "ai_generated"
-
-                if answer and cq["selector"]:
-                    try:
-                        el = await page.query_selector(cq["selector"])
-                        if el:
-                            await el.fill(answer)
-                            fields.append(FilledField(
-                                label=cq["label"],
-                                value=answer,
-                                status=status,
-                                source=source,
-                            ))
-                        else:
-                            fields.append(FilledField(
-                                label=cq["label"],
-                                value=answer,
-                                status=status,
-                                source=source,
-                            ))
-                    except Exception:
-                        fields.append(FilledField(
-                            label=cq["label"],
-                            value=answer,
-                            status="failed",
-                            source=source,
-                        ))
-                elif answer:
-                    # Have answer but no selector — store it for card display
-                    fields.append(FilledField(
-                        label=cq["label"],
-                        value=answer,
-                        status=status,
-                        source=source,
-                    ))
-                else:
-                    # No answer from bank or Gemini
-                    fields.append(FilledField(
-                        label=cq["label"],
-                        value="",
-                        status="skipped",
-                        source="",
-                    ))
-
-            # Navigate multi-page forms
+            # Navigate multi-page forms — fill + custom questions on each page
             page_count = await adapter.navigate_pages(page)
             if page_count > 1:
-                # Re-fill fields on new pages
                 extra_fields = await adapter.fill_form(page, self._profile)
                 fields.extend(extra_fields)
+                fields.extend(
+                    await self._handle_custom_questions(adapter, page, job)
+                )
 
             job.fields = fields
             job.timing.form_filled_at = _now_iso()
+
+            # Check for validation errors on the filled form
+            validation_errors = await self._browser.detect_validation_errors(page)
+            if validation_errors:
+                for err in validation_errors:
+                    fields.append(FilledField(
+                        label=err,
+                        value="",
+                        status="failed",
+                        source="validation_error",
+                    ))
+                job.error_log = (
+                    f"{len(validation_errors)} validation error(s): "
+                    + "; ".join(validation_errors[:3])
+                )
 
             # Take screenshot of the final page
             screenshot_dir = self._settings.data_dir / "screenshots"
@@ -236,6 +269,7 @@ class FormFillingPipeline:
 
             job.status = JobStatus.READY
             self._consecutive_failures = 0
+            self._rate_limiter.record(job.job_url)
             logger.info(
                 f"Filled {job.company} - {job.job_title} "
                 f"({len([f for f in fields if f.status == 'filled'])} fields filled)"
@@ -258,26 +292,58 @@ class FormFillingPipeline:
 
         Called when the user approves a card. Re-fills to guarantee
         freshness, then submits (unless dry_run). Retries once on failure,
-        then pauses for manual intervention.
+        then pauses for manual intervention with browser brought to front.
         """
         job.status = JobStatus.APPROVED
         job.timing.user_reviewed_at = _now_iso()
 
+        page = None
+        keep_page_open = False  # True when paused for manual intervention
+
         for attempt in range(2):  # Max 2 attempts (initial + 1 retry)
-            page = None
             try:
                 await self._rate_limiter.wait_if_needed(job.job_url)
                 self._rate_limiter.record(job.job_url)
 
-                page = await self._browser.new_page()
+                if page is None:
+                    page = await self._browser.new_page()
+
                 await page.goto(job.job_url, wait_until="networkidle", timeout=30000)
                 await self._browser.random_delay()
+
+                # Check for CAPTCHA on re-fill
+                if await self._browser.detect_captcha(page):
+                    await self._browser.bring_to_front(page)
+                    job.status = JobStatus.FAILED
+                    job.error_log = "CAPTCHA detected during re-fill — solve manually"
+                    keep_page_open = True
+                    if self._ws_manager:
+                        await self._ws_manager.broadcast({
+                            "type": "captcha_detected",
+                            "job_id": job.id,
+                            "company": job.company,
+                        })
+                    break
+
+                # Check for login wall on re-fill
+                if await self._browser.detect_login_wall(page):
+                    await self._browser.bring_to_front(page)
+                    job.status = JobStatus.FAILED
+                    job.error_log = "Login required — log in manually and retry"
+                    keep_page_open = True
+                    if self._ws_manager:
+                        await self._ws_manager.broadcast({
+                            "type": "login_required",
+                            "job_id": job.id,
+                            "company": job.company,
+                        })
+                    break
 
                 adapter = get_adapter(job.portal_type)
                 if adapter is None:
                     job.status = JobStatus.FAILED
                     job.error_log = f"No adapter for {job.portal_type}"
-                    return job
+                    break
 
                 # Upload resume
                 resume_path = self._settings.data_dir / "resume.pdf"
@@ -289,11 +355,15 @@ class FormFillingPipeline:
                 # Re-fill the form
                 fields.extend(await adapter.fill_form(page, self._profile))
 
-                # Navigate multi-page forms
+                # Navigate multi-page forms + fill + custom questions on each page
                 page_count = await adapter.navigate_pages(page)
                 if page_count > 1:
                     extra_fields = await adapter.fill_form(page, self._profile)
                     fields.extend(extra_fields)
+                    extra_custom = await self._handle_custom_questions(
+                        adapter, page, job
+                    )
+                    fields.extend(extra_custom)
 
                 job.fields = fields
 
@@ -307,7 +377,7 @@ class FormFillingPipeline:
                     logger.info(f"DRY RUN: Would submit {job.company} - {job.job_title}")
                     job.status = JobStatus.SUBMITTED
                     job.timing.submitted_at = _now_iso()
-                    return job
+                    break
 
                 # Submit
                 success = await adapter.submit(page)
@@ -315,7 +385,7 @@ class FormFillingPipeline:
                     job.status = JobStatus.SUBMITTED
                     job.timing.submitted_at = _now_iso()
                     logger.info(f"Submitted: {job.company} - {job.job_title}")
-                    return job
+                    break
                 else:
                     raise RuntimeError("Submit button click returned False")
 
@@ -325,6 +395,7 @@ class FormFillingPipeline:
                 )
                 if attempt == 0:
                     logger.info("Retrying once...")
+                    # Close and recreate page for clean retry
                     if page:
                         await self._browser.close_page(page)
                         page = None
@@ -336,22 +407,25 @@ class FormFillingPipeline:
                 job.error_log = f"Failed after retry: {e}"
                 self._consecutive_failures += 1
 
-                # Bring browser to front for manual intervention
                 if page:
                     await self._browser.bring_to_front(page)
+                    keep_page_open = True
                     logger.info(
                         "Paused for manual intervention. "
                         "Browser brought to front."
                     )
-                    # Don't close the page — user needs to interact
-                    return job
-            finally:
-                if page and job.status in (JobStatus.SUBMITTED, JobStatus.FAILED):
-                    # Only close if we're done (not paused for intervention)
-                    if job.error_log and "Failed after retry" not in job.error_log:
-                        await self._browser.close_page(page)
-                    elif job.status == JobStatus.SUBMITTED:
-                        await self._browser.close_page(page)
+                    if self._ws_manager:
+                        await self._ws_manager.broadcast({
+                            "type": "manual_intervention",
+                            "job_id": job.id,
+                            "company": job.company,
+                            "error": str(e),
+                        })
+                break
+
+        # Clean up page unless kept open for user intervention
+        if page and not keep_page_open:
+            await self._browser.close_page(page)
 
         return job
 

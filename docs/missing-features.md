@@ -34,7 +34,7 @@ Audit of all missing, incomplete, and planned features as of 2026-02-22.
 - **Problem:** `refill_and_submit()` has a retry loop but the pause + show-browser-for-manual-intervention path has edge cases. The `finally` block's page cleanup logic is fragile.
 - **Files:** `backend/automation/form_filler.py`
 - **Fix:** Clean up retry logic. On second failure: set job status to NEEDS_INTERVENTION, bring browser to front, broadcast WebSocket event, don't close the page.
-- **Status:** [ ] Not started
+- **Status:** [x] Fixed — Rewritten with `keep_page_open` flag, clean page ownership, WS `manual_intervention` event on final failure
 
 ---
 
@@ -44,13 +44,13 @@ Audit of all missing, incomplete, and planned features as of 2026-02-22.
 - **Problem:** No `POST /api/jobs/{id}/edit` endpoint to persist inline field edits from the card back to the backend. Edits made in the frontend are lost on refresh.
 - **Files:** `backend/routes/jobs.py`, `backend/job_store.py`
 - **Fix:** Add endpoint that accepts updated field values and stores them in the job store. On approve, use the edited values during re-fill.
-- **Status:** [ ] Not started
+- **Status:** [x] Fixed — `POST /api/jobs/{id}/edit` endpoint added in Phase 11
 
 ### 7. Rate Limit Enforcement — NOT ENFORCED
 - **Problem:** `RateLimiter` computes whether a domain is rate-limited but `fill_single()` proceeds regardless. `wait_if_needed()` waits but `record()` is only called in `refill_and_submit()`, not in `fill_single()`.
 - **Files:** `backend/automation/form_filler.py`, `backend/automation/rate_limiter.py`
 - **Fix:** Call `self._rate_limiter.record(job.job_url)` in `fill_single()` after successful form fill. Ensure `wait_if_needed()` actually blocks when limit is exceeded.
-- **Status:** [ ] Not started
+- **Status:** [x] Fixed — `record()` now called in `fill_single()` after successful fill
 
 ### 8. Stats in Frontend Sidebar — NOT WIRED
 - **Problem:** `/api/stats` endpoint returns aggregated stats (total applied, success rate, top skipped fields) but `ProgressSidebar` only shows local React state counts.
@@ -74,7 +74,7 @@ Audit of all missing, incomplete, and planned features as of 2026-02-22.
 - **Problem:** After navigating pages, fields on new pages are filled via `adapter.fill_form()` but `detect_custom_questions()` is only called once (on the first page). Custom questions on later pages are missed.
 - **Files:** `backend/automation/form_filler.py`
 - **Fix:** Call `detect_custom_questions()` + answer bank/Gemini on each page after navigation.
-- **Status:** [ ] Not started
+- **Status:** [x] Fixed — Extracted `_handle_custom_questions()` method, called on both first page and after multi-page navigation
 
 ---
 
@@ -105,7 +105,8 @@ Audit of all missing, incomplete, and planned features as of 2026-02-22.
 ## Nice-to-Have Improvements
 
 ### 17. Login Wall Detection
-- Detect when a URL requires login (redirect to SSO, login form on page) and pause instead of failing.
+- ~~Detect when a URL requires login (redirect to SSO, login form on page) and pause instead of failing.~~
+- **Status:** [x] Fixed — `detect_login_wall()` checks URL patterns + form elements, integrated into both `fill_single()` and `refill_and_submit()`
 
 ### 18. Duplicate Application Detection
 - ~~Check audit logs before filling — skip if already applied to same company/role URL.~~
@@ -121,7 +122,8 @@ Audit of all missing, incomplete, and planned features as of 2026-02-22.
 - After user edits an AI-generated field, save the correction back to `answers.json` `custom_answers` for next time.
 
 ### 22. Form Validation Detection
-- After filling, check for red validation error indicators on the page and flag them on the card before submission.
+- ~~After filling, check for red validation error indicators on the page and flag them on the card before submission.~~
+- **Status:** [x] Fixed — `detect_validation_errors()` scans 10+ error selectors + `aria-invalid`, errors added as failed fields with `source="validation_error"`
 
 ### 23. Proxy/VPN Rotation
 - For high-volume use to avoid IP-based rate limiting.
