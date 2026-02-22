@@ -180,3 +180,33 @@ Running log of all completed development tasks.
 
 **Documentation:**
 - `n8n/README.md` — Prerequisites, Google Sheets setup, import instructions, workflow descriptions, troubleshooting table, testing commands
+
+---
+
+## 2026-02-22: Phase 10 — Extend ATS Support (Workday, Lever, Generic)
+
+**What was done:** Added 3 new ATS adapters (Lever, Workday, Generic fallback), registered them in the adapter factory, added list index support to `get_answer()` for education dotpaths, and wrote comprehensive tests. 138 total tests, all passing.
+
+**Adapters created:**
+- `LeverAdapter` — single-page forms, Lever-specific field/label maps, `.application-question` custom question scanning
+- `WorkdayAdapter` — `data-automation-id` selectors, iframe support, custom Angular dropdown helper, SPA-aware navigation (timeout instead of networkidle)
+- `GenericAdapter` — fallback for unknown URLs, 3-strategy fill (placeholder, aria-label, label), broad submit/resume selectors, always-true detect
+
+**Key changes:**
+- `backend/profile.py` — `get_answer()` now supports list index traversal (e.g., `education.0.degree`)
+- `backend/automation/ats_detect.py` — Registered all 3 adapters, added Workday subdomain patterns (wd1-wd5, wd12)
+- `get_adapter("unknown")` now returns `GenericAdapter` instead of `None`
+
+**Files created:**
+- `backend/automation/adapters/lever.py` — LeverAdapter
+- `backend/automation/adapters/workday.py` — WorkdayAdapter
+- `backend/automation/adapters/generic.py` — GenericAdapter
+- `backend/tests/test_lever.py` — 7 tests
+- `backend/tests/test_generic.py` — 14 tests
+- `backend/tests/test_workday.py` — 7 tests
+
+**Files modified:**
+- `backend/profile.py` — list index support in `get_answer()`
+- `backend/automation/ats_detect.py` — 3 new adapter registrations + URL patterns
+- `backend/tests/test_profile.py` — 3 new list index tests
+- `backend/tests/test_ats_detect.py` — updated registration tests (Lever, Workday, Generic)

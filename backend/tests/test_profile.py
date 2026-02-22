@@ -16,6 +16,10 @@ def sample_profile(tmp_path: Path) -> dict:
             "address": {"city": "San Francisco", "state": "CA"},
         },
         "professional": {"years_experience": "5"},
+        "education": [
+            {"degree": "BS", "school": "MIT"},
+            {"degree": "MS", "school": "Stanford"},
+        ],
         "custom_answers": {
             "willing_to_relocate": "Yes, I am open to relocation.",
             "work_authorization": "Authorized to work in the US.",
@@ -52,6 +56,19 @@ def test_get_answer_missing_key(sample_profile: dict):
 
 def test_get_answer_returns_none_for_dict(sample_profile: dict):
     assert get_answer(sample_profile, "personal.address") is None
+
+
+def test_get_answer_list_index(sample_profile: dict):
+    assert get_answer(sample_profile, "education.0.degree") == "BS"
+    assert get_answer(sample_profile, "education.1.school") == "Stanford"
+
+
+def test_get_answer_list_index_out_of_bounds(sample_profile: dict):
+    assert get_answer(sample_profile, "education.5.degree") is None
+
+
+def test_get_answer_list_index_invalid(sample_profile: dict):
+    assert get_answer(sample_profile, "education.abc.degree") is None
 
 
 def test_search_answer_bank_match(sample_profile: dict):

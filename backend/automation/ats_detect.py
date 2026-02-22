@@ -2,6 +2,9 @@ from urllib.parse import urlparse
 
 from backend.automation.adapters.base import BaseAdapter
 from backend.automation.adapters.greenhouse import GreenhouseAdapter
+from backend.automation.adapters.lever import LeverAdapter
+from backend.automation.adapters.workday import WorkdayAdapter
+from backend.automation.adapters.generic import GenericAdapter
 
 # URL hostname patterns -> ATS type
 _URL_PATTERNS: dict[str, str] = {
@@ -9,7 +12,12 @@ _URL_PATTERNS: dict[str, str] = {
     "boards.greenhouse.io": "greenhouse",
     "grnh.se": "greenhouse",
     "myworkdayjobs.com": "workday",
+    "wd1.myworkdayjobs.com": "workday",
+    "wd2.myworkdayjobs.com": "workday",
+    "wd3.myworkdayjobs.com": "workday",
+    "wd4.myworkdayjobs.com": "workday",
     "wd5.myworkdayjobs.com": "workday",
+    "wd12.myworkdayjobs.com": "workday",
     "myworkday.com": "workday",
     "lever.co": "lever",
     "jobs.lever.co": "lever",
@@ -19,6 +27,9 @@ _URL_PATTERNS: dict[str, str] = {
 # ATS type -> adapter class
 _ADAPTERS: dict[str, type[BaseAdapter]] = {
     "greenhouse": GreenhouseAdapter,
+    "lever": LeverAdapter,
+    "workday": WorkdayAdapter,
+    "unknown": GenericAdapter,
 }
 
 

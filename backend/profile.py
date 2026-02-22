@@ -22,9 +22,17 @@ def get_answer(profile: dict, dotpath: str) -> str | None:
     """
     current = profile
     for key in dotpath.split("."):
-        if not isinstance(current, dict) or key not in current:
+        if isinstance(current, list):
+            try:
+                current = current[int(key)]
+            except (ValueError, IndexError):
+                return None
+        elif isinstance(current, dict):
+            if key not in current:
+                return None
+            current = current[key]
+        else:
             return None
-        current = current[key]
     if isinstance(current, (dict, list)):
         return None
     return str(current)
