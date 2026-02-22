@@ -103,6 +103,28 @@ class BrowserManager:
 
         logger.info("Browser stopped")
 
+    async def detect_captcha(self, page: Page) -> bool:
+        """Check if the page contains a CAPTCHA that needs manual solving."""
+        captcha_selectors = [
+            'iframe[src*="recaptcha"]',
+            'iframe[src*="hcaptcha"]',
+            '.g-recaptcha',
+            '#captcha',
+            '[data-captcha]',
+            'iframe[src*="challenge"]',
+            '.h-captcha',
+            '#cf-challenge-running',  # Cloudflare challenge
+        ]
+        try:
+            for selector in captcha_selectors:
+                element = await page.query_selector(selector)
+                if element is not None:
+                    logger.warning(f"CAPTCHA detected: {selector}")
+                    return True
+        except Exception:
+            pass
+        return False
+
     @property
     def is_running(self) -> bool:
         return self._context is not None

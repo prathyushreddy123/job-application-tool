@@ -6,8 +6,18 @@ import {
   Clock,
   Wifi,
   WifiOff,
+  BarChart3,
+  Bot,
 } from "lucide-react";
-import { fetchStatus } from "../lib/api";
+import { fetchStatus, fetchStats } from "../lib/api";
+
+interface Stats {
+  total: number;
+  by_status: Record<string, number>;
+  success_rate: number;
+  top_skipped_fields: [string, number][];
+  ai_generated_count: number;
+}
 
 interface ProgressSidebarProps {
   counts: {
@@ -26,6 +36,7 @@ export function ProgressSidebar({
   running,
 }: ProgressSidebarProps) {
   const [n8nOnline, setN8nOnline] = useState(true);
+  const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
     if (!running) return;
@@ -41,6 +52,20 @@ export function ProgressSidebar({
     const interval = setInterval(check, 10000);
     return () => clearInterval(interval);
   }, [running]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = (await fetchStats()) as unknown as Stats;
+        setStats(data);
+      } catch {
+        // ignore
+      }
+    };
+    load();
+    const interval = setInterval(load, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   const total = counts.approved + counts.skipped + counts.failed;
 
@@ -121,6 +146,59 @@ export function ProgressSidebar({
           </span>
         </div>
       </div>
+
+      {/* Aggregate Stats */}
+      {stats && stats.total > 0 && (
+        <div className="px-5 py-3 border-b border-gray-100">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            All-Time Stats
+          </h3>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1.5 text-gray-500">
+                <BarChart3 className="w-3 h-3" /> Success Rate
+              </span>
+              <span className="font-semibold text-gray-900">
+                {stats.success_rate}%
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1.5 text-gray-500">
+                <CheckCircle2 className="w-3 h-3" /> Total Applied
+              </span>
+              <span className="font-semibold text-gray-900">
+                {stats.total}
+              </span>
+            </div>
+            {stats.ai_generated_count > 0 && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-gray-500">
+                  <Bot className="w-3 h-3" /> AI Answers
+                </span>
+                <span className="font-semibold text-gray-900">
+                  {stats.ai_generated_count}
+                </span>
+              </div>
+            )}
+          </div>
+          {stats.top_skipped_fields.length > 0 && (
+            <div className="mt-2">
+              <p className="text-xs text-gray-400 mb-1">Top skipped fields:</p>
+              <div className="space-y-0.5">
+                {stats.top_skipped_fields.slice(0, 3).map(([field, count]) => (
+                  <div
+                    key={field}
+                    className="flex justify-between text-xs text-gray-400"
+                  >
+                    <span className="truncate">{field}</span>
+                    <span>{count}x</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Recent Activity */}
       <div className="px-5 py-4 flex-1 overflow-y-auto">

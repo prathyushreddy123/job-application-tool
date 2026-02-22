@@ -2,11 +2,13 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
+from backend.audit import list_audit_logs
 from backend.automation.adapters.base import BaseAdapter
 from backend.automation.ats_detect import detect_ats_type, get_adapter
 from backend.automation.browser import BrowserManager
 from backend.automation.rate_limiter import RateLimiter
 from backend.config import Settings
+from backend.gemini_client import GeminiClient
 from backend.models.job import FilledField, Job, JobStatus
 from backend.profile import get_answer, load_profile, search_answer_bank
 
@@ -30,10 +32,14 @@ class FormFillingPipeline:
         browser: BrowserManager,
         settings: Settings,
         rate_limiter: RateLimiter,
+        gemini_client: GeminiClient | None = None,
+        ws_manager=None,
     ):
         self._browser = browser
         self._settings = settings
         self._rate_limiter = rate_limiter
+        self._gemini = gemini_client
+        self._ws_manager = ws_manager
         self._profile: dict = {}
 
         # Job queues
@@ -45,6 +51,17 @@ class FormFillingPipeline:
         # Tracking
         self._consecutive_failures = 0
         self._total_processed = 0
+
+    def _is_duplicate(self, job_url: str) -> bool:
+        """Check if a job URL was already submitted (from audit logs)."""
+        try:
+            logs = list_audit_logs(self._settings.data_dir)
+            for log in logs:
+                if log.get("job_url") == job_url and log.get("status") == "submitted":
+                    return True
+        except Exception:
+            pass
+        return False
 
     async def start(self):
         """Start the pipeline: load profile and begin fill-ahead loop."""
@@ -87,6 +104,13 @@ class FormFillingPipeline:
         job.timing.url_opened_at = _now_iso()
         page = None
 
+        # Check for duplicate application
+        if self._is_duplicate(job.job_url):
+            logger.info(f"Skipping duplicate: {job.company} - {job.job_url}")
+            job.status = JobStatus.SKIPPED
+            job.error_log = "Already applied (duplicate detected from audit logs)"
+            return job
+
         try:
             # Rate limit check
             await self._rate_limiter.wait_if_needed(job.job_url)
@@ -94,6 +118,19 @@ class FormFillingPipeline:
             page = await self._browser.new_page()
             await page.goto(job.job_url, wait_until="networkidle", timeout=30000)
             await self._browser.random_delay()
+
+            # Check for CAPTCHA — pause and wait for user
+            if await self._browser.detect_captcha(page):
+                await self._browser.bring_to_front(page)
+                job.status = JobStatus.FAILED
+                job.error_log = "CAPTCHA detected — solve manually and retry"
+                if self._ws_manager:
+                    await self._ws_manager.broadcast({
+                        "type": "captcha_detected",
+                        "job_id": job.id,
+                        "company": job.company,
+                    })
+                return job
 
             # Detect ATS type if not already set
             if not job.portal_type:
@@ -114,35 +151,66 @@ class FormFillingPipeline:
                 job.error_log = f"Adapter detection failed for {job.job_url}"
                 return job
 
-            # Fill the form
-            fields = await adapter.fill_form(page, self._profile)
+            # Upload resume
+            resume_path = self._settings.data_dir / "resume.pdf"
+            resume_result = await adapter.upload_resume(page, resume_path)
+            fields = []
+            if resume_result:
+                fields.append(resume_result)
 
-            # Handle custom questions (answer bank search)
+            # Fill the form
+            fields.extend(await adapter.fill_form(page, self._profile))
+
+            # Handle custom questions (answer bank -> Gemini fallback)
             custom_questions = await adapter.detect_custom_questions(page)
             for cq in custom_questions:
                 answer = search_answer_bank(self._profile, cq["label"])
-                if answer:
-                    # Try to fill the custom field
-                    if cq["selector"]:
-                        try:
-                            el = await page.query_selector(cq["selector"])
-                            if el:
-                                await el.fill(answer)
-                                fields.append(FilledField(
-                                    label=cq["label"],
-                                    value=answer,
-                                    status="filled",
-                                    source="answer_bank",
-                                ))
-                        except Exception:
+                source = "answer_bank"
+                status = "filled"
+
+                # Gemini fallback if no answer bank match
+                if not answer and self._gemini and self._gemini.is_available:
+                    answer = await self._gemini.generate_answer(
+                        cq["label"], self._profile, job
+                    )
+                    source = "gemini"
+                    status = "ai_generated"
+
+                if answer and cq["selector"]:
+                    try:
+                        el = await page.query_selector(cq["selector"])
+                        if el:
+                            await el.fill(answer)
                             fields.append(FilledField(
                                 label=cq["label"],
-                                value="",
-                                status="skipped",
-                                source="",
+                                value=answer,
+                                status=status,
+                                source=source,
                             ))
+                        else:
+                            fields.append(FilledField(
+                                label=cq["label"],
+                                value=answer,
+                                status=status,
+                                source=source,
+                            ))
+                    except Exception:
+                        fields.append(FilledField(
+                            label=cq["label"],
+                            value=answer,
+                            status="failed",
+                            source=source,
+                        ))
+                elif answer:
+                    # Have answer but no selector — store it for card display
+                    fields.append(FilledField(
+                        label=cq["label"],
+                        value=answer,
+                        status=status,
+                        source=source,
+                    ))
                 else:
-                    # Mark as skipped (Gemini fallback will be added in Phase 5)
+                    # No answer from bank or Gemini
                     fields.append(FilledField(
                         label=cq["label"],
                         value="",
@@ -211,8 +279,15 @@ class FormFillingPipeline:
                     job.error_log = f"No adapter for {job.portal_type}"
                     return job
 
+                # Upload resume
+                resume_path = self._settings.data_dir / "resume.pdf"
+                resume_result = await adapter.upload_resume(page, resume_path)
+                fields = []
+                if resume_result:
+                    fields.append(resume_result)
+
                 # Re-fill the form
-                fields = await adapter.fill_form(page, self._profile)
+                fields.extend(await adapter.fill_form(page, self._profile))
 
                 # Navigate multi-page forms
                 page_count = await adapter.navigate_pages(page)

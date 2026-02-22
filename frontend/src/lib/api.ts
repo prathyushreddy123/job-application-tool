@@ -71,6 +71,23 @@ export async function fetchStats(): Promise<Record<string, unknown>> {
   return res.json();
 }
 
+export async function editJob(
+  jobId: string,
+  fields: { label: string; value: string }[],
+  bringBrowserToFront = false
+): Promise<{ status: string; job_id: string; edits_applied: number }> {
+  const res = await fetch(`/api/jobs/${jobId}/edit`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      fields,
+      bring_browser_to_front: bringBrowserToFront,
+    }),
+  });
+  if (!res.ok) throw new Error(`Failed to edit job: ${res.status}`);
+  return res.json();
+}
+
 export function getScreenshotUrl(jobId: string): string {
   return `/api/jobs/${jobId}/screenshot`;
 }

@@ -210,3 +210,35 @@ Running log of all completed development tasks.
 - `backend/automation/ats_detect.py` — 3 new adapter registrations + URL patterns
 - `backend/tests/test_profile.py` — 3 new list index tests
 - `backend/tests/test_ats_detect.py` — updated registration tests (Lever, Workday, Generic)
+
+---
+
+## 2026-02-22: Phase 11 — Fix Critical Gaps (6 Priority Features)
+
+**What was done:** Implemented 6 missing features identified in the codebase audit. All 138 tests passing, frontend builds clean.
+
+**Features implemented:**
+
+1. **Screenshot capture fix** — Moved screenshot endpoint to public (no-auth) router so `<img>` tags work. Added file existence check.
+
+2. **Gemini AI fallback integration** — Wired `gemini_client` into `FormFillingPipeline`. Custom questions now go: answer bank → Gemini fallback → skip. AI-generated answers flagged as `status="ai_generated"` with `source="gemini"`.
+
+3. **Edit endpoint + browser focus** — Added `POST /api/jobs/{id}/edit` endpoint that accepts field edits and optionally brings browser to front. Frontend E key now calls `editJob()` API to trigger `bring_to_front()`.
+
+4. **CAPTCHA detection + pause** — Added `detect_captcha()` to BrowserManager (checks for reCAPTCHA, hCaptcha, Cloudflare). Integrated into `fill_single()` — on CAPTCHA detection, brings browser to front and broadcasts `captcha_detected` WebSocket event.
+
+5. **Duplicate application detection** — Added `_is_duplicate()` method that checks audit logs for previously submitted URLs. Called at the start of `fill_single()` to skip already-applied jobs.
+
+6. **Stats in frontend sidebar** — ProgressSidebar now fetches `/api/stats` every 15s and displays: success rate %, total applied, AI answer count, and top 3 skipped fields.
+
+**Files created:**
+- `docs/missing-features.md` — Full audit of 25 missing/planned features with status tracking
+
+**Files modified:**
+- `backend/automation/form_filler.py` — Gemini integration, CAPTCHA check, duplicate detection, ws_manager param
+- `backend/automation/browser.py` — `detect_captcha()` method
+- `backend/routes/jobs.py` — `POST /{id}/edit` endpoint, public screenshot router
+- `backend/main.py` — Wire gemini_client + ws_manager into pipeline, mount public_router
+- `frontend/src/components/ProgressSidebar.tsx` — Stats section with success rate, AI counts, top skipped
+- `frontend/src/components/CardStack.tsx` — E key calls editJob API with bring_browser_to_front
+- `frontend/src/lib/api.ts` — `editJob()` function

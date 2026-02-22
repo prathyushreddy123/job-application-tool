@@ -35,7 +35,8 @@ class AppState:
         self.rate_limiter = RateLimiter(settings.get_rate_limits())
         self.browser = BrowserManager(settings)
         self.pipeline = FormFillingPipeline(
-            self.browser, settings, self.rate_limiter
+            self.browser, settings, self.rate_limiter,
+            self.gemini_client, self.ws_manager
         )
 
 
@@ -55,6 +56,7 @@ app.add_middleware(
 
 # Mount route modules
 app.include_router(jobs.router)
+app.include_router(jobs.public_router)
 app.include_router(automation.router)
 app.include_router(webhooks.router)
 app.include_router(stats.router)

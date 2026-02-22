@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { PartyPopper } from "lucide-react";
 import type { Job } from "../lib/types";
+import { editJob } from "../lib/api";
 import { ApplicationCard } from "./ApplicationCard";
 import { ScreenshotModal } from "./ScreenshotModal";
 import { useKeyboard } from "../hooks/useKeyboard";
@@ -34,7 +35,13 @@ export function CardStack({
     onSkip,
     onPanic,
     onScreenshot: () => setShowScreenshot(true),
-    onEdit: () => setEditMode((prev) => !prev),
+    onEdit: () => {
+      const entering = !editMode;
+      setEditMode(entering);
+      if (entering && currentJob) {
+        editJob(currentJob.id, [], true).catch(() => {});
+      }
+    },
     enabled: !!currentJob && !showScreenshot,
   });
 
